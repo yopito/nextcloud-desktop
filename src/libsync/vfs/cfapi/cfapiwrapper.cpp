@@ -51,9 +51,17 @@ void cfApiSendTransferInfo(const CF_CONNECTION_KEY &connectionKey, const CF_TRAN
     opParams.TransferData.Offset.QuadPart = offset;
     opParams.TransferData.Length.QuadPart = length;
 
+    LARGE_INTEGER providerProgressTotal;
+    LARGE_INTEGER providerProgressCompleted;
+
+    providerProgressTotal.QuadPart = 77000;
+    providerProgressCompleted.QuadPart = length;
+
     const qint64 result = CfExecute(&opInfo, &opParams);
     if (result != S_OK) {
-        qCCritical(lcCfApiWrapper) << "Couldn't send transfer info" << QString::number(transferKey.QuadPart, 16) << ":" << result << QString::fromWCharArray(_com_error(result).ErrorMessage());
+        qCCritical(lcCfApiWrapper) << "Couldn't send transfer info" << QString::number(transferKey.QuadPart, 16) << ":" << _com_error(result).ErrorMessage();
+    } else {
+        CfReportProviderProgress(connectionKey, transferKey, providerProgressTotal, providerProgressTotal);
     }
 }
 

@@ -141,7 +141,16 @@ void OCC::HydrationJob::onNewConnection()
 
     qCInfo(lcHydration) << "Got new connection starting GETFileJob" << _requestId << _folderPath;
     _socket = _server->nextPendingConnection();
-    bool res = _buffer.open(QIODevice::WriteOnly);
+    bool res = _buffer.open(QIODevice::ReadWrite);
+
+    connect(&_buffer, &QBuffer::bytesWritten, this, [this](qint64 bytes) {
+        if (_buffer.data().size() >= 4096 + _bufReadOffset) {
+            QByteArray bArr = QByteArray(_buffer.data().data() + _bufReadOffset, 4096);
+            _socket->write(bArr);
+            _bufReadOffset += 4096;
+        }
+    });
+
     _job = new GETFileJob(_account, _remotePath + _folderPath, &_buffer, {}, {}, 0, this);
     connect(_job, &GETFileJob::finishedSignal, this, &HydrationJob::onGetFinished);
     _job->start();
@@ -156,8 +165,6 @@ void OCC::HydrationJob::onGetFinished()
         return;
     }
 
-    _buffer.close();
-
     SyncJournalFileRecord record;
     _journal->getFileRecord(_folderPath, &record);
     Q_ASSERT(record.isValid());
@@ -167,9 +174,10 @@ void OCC::HydrationJob::onGetFinished()
         return;
     }
 
-    bool res = _buffer.open(QIODevice::ReadOnly);
-
-    _socket->write(_buffer.data());
+    if (_buffer.data().size() >= 4096 + _bufReadOffset) {
+        QByteArray bArr = QByteArray(_buffer.data().data() + _bufReadOffset, _buffer.data().size() - _bufReadOffset);
+        _socket->write(bArr);
+    }
 
     record._type = ItemTypeFile;
     _journal->setFileRecord(record);

@@ -81,6 +81,7 @@ private:
     Status _status = Success;
     QByteArray _bufferData;
     QBuffer _buffer;
+    int _bufReadOffset = 0;
 };
 
 } // namespace OCC
