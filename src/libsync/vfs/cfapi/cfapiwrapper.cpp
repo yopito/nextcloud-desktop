@@ -14,6 +14,12 @@
 
 #include "cfapiwrapper.h"
 
+#include <SearchAPI.h>
+#include <propkey.h>      // needed for ApplyTransferStateToFile
+#include <propvarutil.h>  // needed for ApplyTransferStateToFile
+#include <shobjidl_core.h>
+#include <shlobj_core.h>
+
 #include "common/utility.h"
 #include "hydrationjob.h"
 #include "vfs_cfapi.h"
@@ -23,9 +29,13 @@
 #include <QLocalSocket>
 #include <QLoggingCategory>
 
+#include <winrt/base.h>
 #include <cfapi.h>
 #include <comdef.h>
 #include <ntstatus.h>
+
+#define MSSEARCH_INDEX L"SystemIndex"
+DEFINE_PROPERTYKEY(PKEY_StorageProviderTransferProgress, 0xE77E90DF, 0x6271, 0x4F5B, 0x83, 0x4F, 0x2D, 0xD1, 0xF2, 0x45, 0xDD, 0xA4, 4);
 
 Q_LOGGING_CATEGORY(lcCfApiWrapper, "nextcloud.sync.vfs.cfapi.wrapper", QtInfoMsg)
 
@@ -33,6 +43,8 @@ Q_LOGGING_CATEGORY(lcCfApiWrapper, "nextcloud.sync.vfs.cfapi.wrapper", QtInfoMsg
 #define CF_SIZE_OF_OP_PARAM( field )                                           \
     ( FIELD_OFFSET( CF_OPERATION_PARAMETERS, field ) +                         \
       FIELD_SIZE( CF_OPERATION_PARAMETERS, field ) )
+
+#define CHUNKSIZE 4096
 
 namespace {
 void cfApiSendTransferInfo(const CF_CONNECTION_KEY &connectionKey, const CF_TRANSFER_KEY &transferKey, NTSTATUS status, void *buffer, qint64 offset, qint64 length)
@@ -60,14 +72,114 @@ void cfApiSendTransferInfo(const CF_CONNECTION_KEY &connectionKey, const CF_TRAN
     const qint64 result = CfExecute(&opInfo, &opParams);
     if (result != S_OK) {
         qCCritical(lcCfApiWrapper) << "Couldn't send transfer info" << QString::number(transferKey.QuadPart, 16) << ":" << _com_error(result).ErrorMessage();
-    } else {
-        CfReportProviderProgress(connectionKey, transferKey, providerProgressTotal, providerProgressTotal);
+    }
+}
+
+LARGE_INTEGER LongLongToLargeInteger(_In_ const LONGLONG longlong)
+{
+    LARGE_INTEGER largeInteger;
+    largeInteger.QuadPart = longlong;
+    return largeInteger;
+}
+
+void AddFolderToSearchIndexer(_In_ PCWSTR folder)
+{
+    std::wstring url(L"file:///");
+    url.append(folder);
+
+    try
+    {
+        winrt::com_ptr<ISearchManager> searchManager;
+        winrt::check_hresult(CoCreateInstance(__uuidof(CSearchManager), NULL, CLSCTX_SERVER, __uuidof(&searchManager), searchManager.put_void()));
+
+        winrt::com_ptr<ISearchCatalogManager> searchCatalogManager;
+        winrt::check_hresult(searchManager->GetCatalog(MSSEARCH_INDEX, searchCatalogManager.put()));
+
+        winrt::com_ptr<ISearchCrawlScopeManager> searchCrawlScopeManager;
+        winrt::check_hresult(searchCatalogManager->GetCrawlScopeManager(searchCrawlScopeManager.put()));
+
+        winrt::check_hresult(searchCrawlScopeManager->AddDefaultScopeRule(url.data(), TRUE, FOLLOW_FLAGS::FF_INDEXCOMPLEXURLS));
+        winrt::check_hresult(searchCrawlScopeManager->SaveAll());
+
+        wprintf(L"Succesfully called AddFolderToSearchIndexer on \"%s\"\n", url.data());
+    }
+    catch (...)
+    {
+        // winrt::to_hresult() will eat the exception if it is a result of winrt::check_hresult,
+        // otherwise the exception will get rethrown and this method will crash out as it should
+        wprintf(L"Failed on call to AddFolderToSearchIndexer for \"%s\" with %08x\n", url.data(), static_cast<HRESULT>(winrt::to_hresult()));
+    }
+}
+
+void ApplyTransferStateToFile(_In_ PCWSTR fullPath, _In_ const CF_CALLBACK_INFO& callbackInfo, UINT64 total, UINT64 completed)
+{
+    // Tell the Cloud File API about progress so that toasts can be displayed
+    winrt::check_hresult(
+        CfReportProviderProgress(
+            callbackInfo.ConnectionKey,
+            callbackInfo.TransferKey,
+            LongLongToLargeInteger(total),
+            LongLongToLargeInteger(completed)));
+    wprintf(L"Succesfully called CfReportProviderProgress \"%s\" with %llu/%llu\n", fullPath, completed, total);
+
+    // Tell the Shell so File Explorer can display the progress bar in its view
+    try
+    {
+        // First, get the Volatile property store for the file. That's where the properties are maintained.
+        winrt::com_ptr<IShellItem2> shellItem;
+        winrt::check_hresult(SHCreateItemFromParsingName(fullPath, nullptr, __uuidof(shellItem), shellItem.put_void()));
+
+        winrt::com_ptr<IPropertyStore> propStoreVolatile;
+        winrt::check_hresult(
+            shellItem->GetPropertyStore(
+                GETPROPERTYSTOREFLAGS::GPS_READWRITE | GETPROPERTYSTOREFLAGS::GPS_VOLATILEPROPERTIESONLY,
+                __uuidof(propStoreVolatile),
+                propStoreVolatile.put_void()));
+
+        // The PKEY_StorageProviderTransferProgress property works with a UINT64 array that is two elements, with
+        // element 0 being the amount of data transferred, and element 1 being the total amount
+        // that will be transferred.
+        PROPVARIANT transferProgress;
+        UINT64 values[]{ completed , total };
+        winrt::check_hresult(InitPropVariantFromUInt64Vector(values, ARRAYSIZE(values), &transferProgress));
+        winrt::check_hresult(propStoreVolatile->SetValue(PKEY_StorageProviderTransferProgress, transferProgress));
+
+        // Set the sync transfer status accordingly
+        PROPVARIANT transferStatus;
+        winrt::check_hresult(
+            InitPropVariantFromUInt32(
+                (completed < total) ? SYNC_TRANSFER_STATUS::STS_TRANSFERRING : SYNC_TRANSFER_STATUS::STS_NONE,
+                &transferStatus));
+        winrt::check_hresult(propStoreVolatile->SetValue(PKEY_SyncTransferStatus, transferStatus));
+
+        // Without this, all your hard work is wasted.
+        winrt::check_hresult(propStoreVolatile->Commit());
+
+        // Broadcast a notification that something about the file has changed, so that apps
+        // who subscribe (such as File Explorer) can update their UI to reflect the new progress
+        SHChangeNotify(SHCNE_UPDATEITEM, SHCNF_PATH, static_cast<LPCVOID>(fullPath), nullptr);
+
+        wprintf(L"Succesfully Set Transfer Progress on \"%s\" to %llu/%llu\n", fullPath, completed, total);
+    }
+    catch (...)
+    {
+        // winrt::to_hresult() will eat the exception if it is a result of winrt::check_hresult,
+        // otherwise the exception will get rethrown and this method will crash out as it should
+        wprintf(L"Failed to Set Transfer Progress on \"%s\" with %08x\n", fullPath, static_cast<HRESULT>(winrt::to_hresult()));
     }
 }
 
 
 void CALLBACK cfApiFetchDataCallback(const CF_CALLBACK_INFO *callbackInfo, const CF_CALLBACK_PARAMETERS *callbackParameters)
 {
+
+    HRESULT hr = CoInitializeEx(NULL, COINIT_APARTMENTTHREADED);
+
+    if (SUCCEEDED(hr)) {
+        int a = 5;
+        a = 6;
+    }
+
     const auto sendTransferError = [=] {
         cfApiSendTransferInfo(callbackInfo->ConnectionKey,
                               callbackInfo->TransferKey,
@@ -84,6 +196,25 @@ void CALLBACK cfApiFetchDataCallback(const CF_CALLBACK_INFO *callbackInfo, const
                               data.data(),
                               offset,
                               data.length());
+
+        std::wstring fullClientPath(callbackInfo->VolumeDosName);
+        fullClientPath.append(callbackInfo->NormalizedPath);
+
+        DWORD chunkBufferSize = callbackParameters->FetchData.RequiredLength.QuadPart < CHUNKSIZE ? (ULONG)callbackParameters->FetchData.RequiredLength.QuadPart : (ULONG)CHUNKSIZE;
+
+        LONGLONG total = callbackInfo->FileSize.QuadPart + chunkBufferSize;
+        LONGLONG completed = offset;
+
+        HRESULT hr = CoInitializeEx(NULL, COINIT_APARTMENTTHREADED);
+
+        if (SUCCEEDED(hr)) {
+            int a = 5;
+            a = 6;
+        }
+
+        ApplyTransferStateToFile(fullClientPath.data(), *callbackInfo, total, completed);
+
+        CoUninitialize();
     };
 
     auto vfs = reinterpret_cast<OCC::VfsCfApi *>(callbackInfo->CallbackContext);
@@ -325,6 +456,12 @@ OCC::Result<OCC::CfApiWrapper::ConnectionKey, QString> OCC::CfApiWrapper::connec
     if (result != S_OK) {
         return QString::fromWCharArray(_com_error(result).ErrorMessage());
     } else {
+        HRESULT hr = CoInitializeEx(NULL, COINIT_APARTMENTTHREADED);
+
+        if (SUCCEEDED(hr)) {
+            AddFolderToSearchIndexer(path.toStdWString().data());
+        }
+
         return key;
     }
 }
@@ -334,6 +471,7 @@ OCC::Result<void, QString> OCC::CfApiWrapper::disconnectSyncRoot(ConnectionKey &
     const qint64 result = CfDisconnectSyncRoot(*static_cast<CF_CONNECTION_KEY *>(key.get()));
     Q_ASSERT(result == S_OK);
     if (result != S_OK) {
+        CoUninitialize();
         return QString::fromWCharArray(_com_error(result).ErrorMessage());
     } else {
         return {};

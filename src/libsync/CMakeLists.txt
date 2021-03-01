@@ -75,6 +75,9 @@ if (WIN32)
     )
     add_definitions(-D_WIN32_WINNT=_WIN32_WINNT_WIN10)
     list(APPEND OS_SPECIFIC_LINK_LIBRARIES cldapi)
+    list(APPEND OS_SPECIFIC_LINK_LIBRARIES propsys)
+    list(APPEND OS_SPECIFIC_LINK_LIBRARIES shlwapi)
+    list(APPEND OS_SPECIFIC_LINK_LIBRARIES windowsapp)
 elseif(LINUX) # elseif(LINUX OR APPLE)
     set(libsync_SRCS ${libsync_SRCS} vfs/xattr/vfs_xattr.cpp)
     if (APPLE)
@@ -129,6 +132,8 @@ target_link_libraries(${synclib_NAME}
   Qt5::Network
   Qt5::WebSockets
 )
+
+set_property(TARGET ${synclib_NAME} PROPERTY CXX_STANDARD 17)
 
 if (NOT TOKEN_AUTH_ONLY)
     find_package(Qt5 REQUIRED COMPONENTS Widgets Svg)
