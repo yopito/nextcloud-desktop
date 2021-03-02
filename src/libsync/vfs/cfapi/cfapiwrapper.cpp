@@ -63,12 +63,6 @@ void cfApiSendTransferInfo(const CF_CONNECTION_KEY &connectionKey, const CF_TRAN
     opParams.TransferData.Offset.QuadPart = offset;
     opParams.TransferData.Length.QuadPart = length;
 
-    LARGE_INTEGER providerProgressTotal;
-    LARGE_INTEGER providerProgressCompleted;
-
-    providerProgressTotal.QuadPart = 77000;
-    providerProgressCompleted.QuadPart = length;
-
     const qint64 result = CfExecute(&opInfo, &opParams);
     if (result != S_OK) {
         qCCritical(lcCfApiWrapper) << "Couldn't send transfer info" << QString::number(transferKey.QuadPart, 16) << ":" << _com_error(result).ErrorMessage();
@@ -84,6 +78,12 @@ LARGE_INTEGER LongLongToLargeInteger(_In_ const LONGLONG longlong)
 
 void AddFolderToSearchIndexer(_In_ PCWSTR folder)
 {
+    HRESULT hr = CoInitializeEx(NULL, COINIT_APARTMENTTHREADED);
+
+    if (!SUCCEEDED(hr)) {
+        return;
+    }
+
     std::wstring url(L"file:///");
     url.append(folder);
 
@@ -108,7 +108,11 @@ void AddFolderToSearchIndexer(_In_ PCWSTR folder)
         // winrt::to_hresult() will eat the exception if it is a result of winrt::check_hresult,
         // otherwise the exception will get rethrown and this method will crash out as it should
         wprintf(L"Failed on call to AddFolderToSearchIndexer for \"%s\" with %08x\n", url.data(), static_cast<HRESULT>(winrt::to_hresult()));
+
+        CoUninitialize();
     }
+
+    CoUninitialize();
 }
 
 void ApplyTransferStateToFile(_In_ PCWSTR fullPath, _In_ const CF_CALLBACK_INFO& callbackInfo, UINT64 total, UINT64 completed)
@@ -172,14 +176,6 @@ void ApplyTransferStateToFile(_In_ PCWSTR fullPath, _In_ const CF_CALLBACK_INFO&
 
 void CALLBACK cfApiFetchDataCallback(const CF_CALLBACK_INFO *callbackInfo, const CF_CALLBACK_PARAMETERS *callbackParameters)
 {
-
-    HRESULT hr = CoInitializeEx(NULL, COINIT_APARTMENTTHREADED);
-
-    if (SUCCEEDED(hr)) {
-        int a = 5;
-        a = 6;
-    }
-
     const auto sendTransferError = [=] {
         cfApiSendTransferInfo(callbackInfo->ConnectionKey,
                               callbackInfo->TransferKey,
@@ -197,7 +193,7 @@ void CALLBACK cfApiFetchDataCallback(const CF_CALLBACK_INFO *callbackInfo, const
                               offset,
                               data.length());
 
-        std::wstring fullClientPath(callbackInfo->VolumeDosName);
+        /*std::wstring fullClientPath(callbackInfo->VolumeDosName);
         fullClientPath.append(callbackInfo->NormalizedPath);
 
         DWORD chunkBufferSize = callbackParameters->FetchData.RequiredLength.QuadPart < CHUNKSIZE ? (ULONG)callbackParameters->FetchData.RequiredLength.QuadPart : (ULONG)CHUNKSIZE;
@@ -205,16 +201,9 @@ void CALLBACK cfApiFetchDataCallback(const CF_CALLBACK_INFO *callbackInfo, const
         LONGLONG total = callbackInfo->FileSize.QuadPart + chunkBufferSize;
         LONGLONG completed = offset;
 
-        HRESULT hr = CoInitializeEx(NULL, COINIT_APARTMENTTHREADED);
-
-        if (SUCCEEDED(hr)) {
-            int a = 5;
-            a = 6;
-        }
-
         ApplyTransferStateToFile(fullClientPath.data(), *callbackInfo, total, completed);
 
-        CoUninitialize();
+        CoUninitialize();*/
     };
 
     auto vfs = reinterpret_cast<OCC::VfsCfApi *>(callbackInfo->CallbackContext);
@@ -456,13 +445,9 @@ OCC::Result<OCC::CfApiWrapper::ConnectionKey, QString> OCC::CfApiWrapper::connec
     if (result != S_OK) {
         return QString::fromWCharArray(_com_error(result).ErrorMessage());
     } else {
-        HRESULT hr = CoInitializeEx(NULL, COINIT_APARTMENTTHREADED);
+        //AddFolderToSearchIndexer(path.toStdWString().data());
 
-        if (SUCCEEDED(hr)) {
-            AddFolderToSearchIndexer(path.toStdWString().data());
-        }
-
-        return key;
+        return std::move(key);
     }
 }
 

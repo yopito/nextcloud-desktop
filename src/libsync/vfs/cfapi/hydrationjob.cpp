@@ -20,6 +20,10 @@
 #include <QLocalServer>
 #include <QLocalSocket>
 
+namespace {
+  const auto constexpr blockSizeMultiple = 4096;
+}
+
 Q_LOGGING_CATEGORY(lcHydration, "nextcloud.sync.vfs.hydrationjob", QtInfoMsg)
 
 OCC::HydrationJob::HydrationJob(QObject *parent)
@@ -141,13 +145,22 @@ void OCC::HydrationJob::onNewConnection()
 
     qCInfo(lcHydration) << "Got new connection starting GETFileJob" << _requestId << _folderPath;
     _socket = _server->nextPendingConnection();
-    bool res = _buffer.open(QIODevice::ReadWrite);
+    _buffer.open(QIODevice::ReadWrite);
 
     connect(&_buffer, &QBuffer::bytesWritten, this, [this](qint64 bytes) {
-        if (_buffer.data().size() >= 4096 + _bufReadOffset) {
-            QByteArray bArr = QByteArray(_buffer.data().data() + _bufReadOffset, 4096);
-            _socket->write(bArr);
-            _bufReadOffset += 4096;
+        if (_buffer.data().size() >= blockSizeMultiple + _bufReadOffset) {
+            const int numBlocks = (_buffer.data().size() - (blockSizeMultiple + _bufReadOffset)) / blockSizeMultiple;
+            int i = 1;
+
+            QByteArray blocks;
+
+            while (i <= numBlocks) {
+                blocks.append(_buffer.data().mid(_bufReadOffset, blockSizeMultiple));
+                _bufReadOffset += blockSizeMultiple;
+                ++i;
+            }
+
+           _socket->write(blocks);
         }
     });
 
@@ -174,9 +187,24 @@ void OCC::HydrationJob::onGetFinished()
         return;
     }
 
-    if (_buffer.data().size() >= 4096 + _bufReadOffset) {
-        QByteArray bArr = QByteArray(_buffer.data().data() + _bufReadOffset, _buffer.data().size() - _bufReadOffset);
-        _socket->write(bArr);
+    if (_buffer.data().size() >= _bufReadOffset) {
+        const int numBlocks = (_buffer.data().size() - _bufReadOffset) / blockSizeMultiple;
+        int i = 1;
+
+        QByteArray blocks;
+
+        while (i <= numBlocks) {
+            blocks.append(_buffer.data().mid(_bufReadOffset, blockSizeMultiple));
+            _bufReadOffset += blockSizeMultiple;
+            ++i;
+        }
+
+       _socket->write(blocks);
+
+       if (_buffer.data().size() >= _bufReadOffset) {
+           QByteArray bArr = QByteArray(_buffer.data().data() + _bufReadOffset, _buffer.data().size() - _bufReadOffset);
+           _socket->write(bArr);
+       }
     }
 
     record._type = ItemTypeFile;
