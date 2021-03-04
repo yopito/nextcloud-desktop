@@ -19,6 +19,23 @@
 #include <propvarutil.h>  // needed for ApplyTransferStateToFile
 #include <shobjidl_core.h>
 #include <shlobj_core.h>
+#include <stdio.h>
+#include <tchar.h>
+#include <Unknwn.h>
+#include <winrt/base.h>
+#include <shlwapi.h>
+#include <pathcch.h>
+#include <ShlGuid.h>
+#include <ShObjIdl_core.h>
+#include <ShlObj_core.h>
+#include <cfapi.h>
+#include <ntstatus.h>
+#include <sddl.h>
+#include <winrt/windows.storage.provider.h>
+#include <winrt/Windows.Security.Cryptography.h>
+#include "winrt/impl/Windows.Storage.Provider.2.h"
+#include <ppltasks.h>
+#include <strsafe.h>
 
 #include "common/utility.h"
 #include "hydrationjob.h"
@@ -38,6 +55,9 @@
 DEFINE_PROPERTYKEY(PKEY_StorageProviderTransferProgress, 0xE77E90DF, 0x6271, 0x4F5B, 0x83, 0x4F, 0x2D, 0xD1, 0xF2, 0x45, 0xDD, 0xA4, 4);
 
 Q_LOGGING_CATEGORY(lcCfApiWrapper, "nextcloud.sync.vfs.cfapi.wrapper", QtInfoMsg)
+
+#define STORAGE_PROVIDER_ID L"TestStorageProvider"
+#define STORAGE_PROVIDER_ACCOUNT L"TestAccount1"
 
 #define FIELD_SIZE( type, field ) ( sizeof( ( (type*)0 )->field ) )
 #define CF_SIZE_OF_OP_PARAM( field )                                           \
@@ -113,6 +133,83 @@ void AddFolderToSearchIndexer(_In_ PCWSTR folder)
     }
 
     CoUninitialize();
+}
+
+std::unique_ptr<TOKEN_USER> GetTokenInformation()
+{
+    std::unique_ptr<TOKEN_USER> tokenInfo;
+
+    // get the tokenHandle from current thread/process if it's null
+    auto tokenHandle{ GetCurrentThreadEffectiveToken() }; // Pseudo token, don't free.
+
+    DWORD tokenInfoSize{ 0 };
+    if (!::GetTokenInformation(tokenHandle, TokenUser, nullptr, 0, &tokenInfoSize))
+    {
+        if (::GetLastError() == ERROR_INSUFFICIENT_BUFFER)
+        {
+            tokenInfo.reset(reinterpret_cast<TOKEN_USER*>(new char[tokenInfoSize]));
+            if (!::GetTokenInformation(tokenHandle, TokenUser, tokenInfo.get(), tokenInfoSize, &tokenInfoSize))
+            {
+                throw std::exception("GetTokenInformation failed");
+            }
+        }
+        else
+        {
+            throw std::exception("GetTokenInformation failed");
+        }
+    }
+    return tokenInfo;
+}
+
+static winrt::com_array<wchar_t> ConvertSidToStringSid(_In_ PSID sid)
+   {
+       winrt::com_array<wchar_t> string;
+       if (::ConvertSidToStringSid(sid, winrt::put_abi(string)))
+       {
+           return string;
+       }
+       else
+       {
+           throw std::bad_alloc();
+       }
+   };
+
+std::wstring GetSyncRootId()
+{
+    std::unique_ptr<TOKEN_USER> tokenInfo(GetTokenInformation());
+    auto sidString = ConvertSidToStringSid(tokenInfo->User.Sid);
+    std::wstring syncRootID(STORAGE_PROVIDER_ID);
+    syncRootID.append(L"!");
+    syncRootID.append(sidString.data());
+    syncRootID.append(L"!");
+    syncRootID.append(STORAGE_PROVIDER_ACCOUNT);
+
+    return syncRootID;
+}
+
+void RegisterWithShell()
+{
+    try
+    {
+        auto syncRootID = GetSyncRootId();
+
+        winrt::StorageProviderSyncRootInfo info;
+        info.Id(syncRootID);
+        info.Version(L"1.0.0");
+        auto folder = winrt::StorageFolder::GetFolderFromPathAsync(ProviderFolderLocations::GetClientFolder()).get();
+        info.Path(folder);
+
+        winrt::StorageProviderSyncRootManager::Register(info);
+
+        // Give the cache some time to invalidate
+        Sleep(1000);
+    }
+    catch (...)
+    {
+        // winrt::to_hresult() will eat the exception if it is a result of winrt::check_hresult,
+        // otherwise the exception will get rethrown and this method will crash out as it should
+        wprintf(L"Could not register the sync root, hr %08x\n", static_cast<HRESULT>(winrt::to_hresult()));
+    }
 }
 
 void ApplyTransferStateToFile(_In_ PCWSTR fullPath, _In_ const CF_CALLBACK_INFO& callbackInfo, UINT64 total, UINT64 completed)
