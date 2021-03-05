@@ -28,6 +28,7 @@
 #include <comdef.h>
 #include <ntstatus.h>
 
+#include <QtConcurrent>
 #include <QDir>
 #include <QFileInfo>
 #include <QLocalSocket>
@@ -42,8 +43,8 @@ DEFINE_PROPERTYKEY(PKEY_StorageProviderTransferProgress, 0xE77E90DF, 0x6271, 0x4
 
 Q_LOGGING_CATEGORY(lcCfApiWrapper, "nextcloud.sync.vfs.cfapi.wrapper", QtInfoMsg)
 
-#define STORAGE_PROVIDER_ID L"TestStorageProvider"
-#define STORAGE_PROVIDER_ACCOUNT L"TestAccount1"
+#define STORAGE_PROVIDER_ID L"NCStorageProvider"
+#define STORAGE_PROVIDER_ACCOUNT L"NCTestAccount1"
 
 #define FIELD_SIZE( type, field ) ( sizeof( ( (type*)0 )->field ) )
 #define CF_SIZE_OF_OP_PARAM( field )                                           \
@@ -84,12 +85,6 @@ LARGE_INTEGER LongLongToLargeInteger(_In_ const LONGLONG longlong)
 
 void AddFolderToSearchIndexer(_In_ PCWSTR folder)
 {
-    HRESULT hr = CoInitializeEx(NULL, COINIT_APARTMENTTHREADED);
-
-    if (!SUCCEEDED(hr)) {
-        return;
-    }
-
     std::wstring url(L"file:///");
     url.append(folder);
 
@@ -114,11 +109,7 @@ void AddFolderToSearchIndexer(_In_ PCWSTR folder)
         // winrt::to_hresult() will eat the exception if it is a result of winrt::check_hresult,
         // otherwise the exception will get rethrown and this method will crash out as it should
         wprintf(L"Failed on call to AddFolderToSearchIndexer for \"%s\" with %08x\n", url.data(), static_cast<HRESULT>(winrt::to_hresult()));
-
-        CoUninitialize();
     }
-
-    CoUninitialize();
 }
 
 std::unique_ptr<TOKEN_USER> GetTokenInformation()
@@ -173,19 +164,25 @@ std::wstring GetSyncRootId()
     return syncRootID;
 }
 
-void RegisterWithShell()
+void RegisterWithShell(const QString &path)
 {
     try
     {
         auto syncRootID = GetSyncRootId();
 
-        static std::wstring s_clientFolder;
+        static std::wstring s_clientFolder = path.toStdWString();
 
         winrt::Windows::Storage::Provider::StorageProviderSyncRootInfo info;
         info.Id(syncRootID);
         info.Version(L"1.0.0");
+
         auto folder = winrt::Windows::Storage::StorageFolder::GetFolderFromPathAsync(s_clientFolder).get();
         info.Path(folder);
+
+        winrt::Windows::Storage::Provider::StorageProviderSyncRootManager::GetCurrentSyncRoots();
+
+        winrt::Windows::Storage::Provider::StorageProviderSyncRootManager::GetSyncRootInformationForFolder(folder);
+
 
         winrt::Windows::Storage::Provider::StorageProviderSyncRootManager::Register(info);
 
@@ -530,8 +527,14 @@ OCC::Result<OCC::CfApiWrapper::ConnectionKey, QString> OCC::CfApiWrapper::connec
     if (result != S_OK) {
         return QString::fromWCharArray(_com_error(result).ErrorMessage());
     } else {
-        //AddFolderToSearchIndexer(path.toStdWString().data());
+        HRESULT hr = CoInitializeEx(NULL, COINIT_APARTMENTTHREADED);
 
+        if (!SUCCEEDED(hr)) {
+            return std::move(key);
+        }
+
+        AddFolderToSearchIndexer(path.toStdWString().data());
+        QFuture<void> future = QtConcurrent::run(&RegisterWithShell, path);
         return std::move(key);
     }
 }
