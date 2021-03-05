@@ -15,10 +15,6 @@
 #include "cfapiwrapper.h"
 
 #include <SearchAPI.h>
-#include <propkey.h>      // needed for ApplyTransferStateToFile
-#include <propvarutil.h>  // needed for ApplyTransferStateToFile
-#include <shobjidl_core.h>
-#include <shlobj_core.h>
 #include <stdio.h>
 #include <tchar.h>
 #include <Unknwn.h>
@@ -31,11 +27,14 @@
 #include <cfapi.h>
 #include <ntstatus.h>
 #include <sddl.h>
-#include <winrt/windows.storage.provider.h>
-#include <winrt/Windows.Security.Cryptography.h>
-#include "winrt/impl/Windows.Storage.Provider.2.h"
+#include <winrt\Windows.Foundation.h>
+#include <winrt\Windows.Storage.Provider.h>
+#include <winrt\Windows.Security.Cryptography.h>
 #include <ppltasks.h>
 #include <strsafe.h>
+#include <propkey.h>      // needed for ApplyTransferStateToFile
+#include <propvarutil.h>  // needed for ApplyTransferStateToFile
+#include <cfapi.h>
 
 #include "common/utility.h"
 #include "hydrationjob.h"
@@ -46,7 +45,6 @@
 #include <QLocalSocket>
 #include <QLoggingCategory>
 
-#include <winrt/base.h>
 #include <cfapi.h>
 #include <comdef.h>
 #include <ntstatus.h>
@@ -193,13 +191,15 @@ void RegisterWithShell()
     {
         auto syncRootID = GetSyncRootId();
 
-        winrt::StorageProviderSyncRootInfo info;
+        static std::wstring s_clientFolder;
+
+        winrt::Windows::Storage::Provider::StorageProviderSyncRootInfo info;
         info.Id(syncRootID);
         info.Version(L"1.0.0");
-        auto folder = winrt::StorageFolder::GetFolderFromPathAsync(ProviderFolderLocations::GetClientFolder()).get();
+        auto folder = winrt::Windows::Storage::StorageFolder::GetFolderFromPathAsync(s_clientFolder).get();
         info.Path(folder);
 
-        winrt::StorageProviderSyncRootManager::Register(info);
+        winrt::Windows::Storage::Provider::StorageProviderSyncRootManager::Register(info);
 
         // Give the cache some time to invalidate
         Sleep(1000);
