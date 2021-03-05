@@ -15,39 +15,27 @@
 #include "cfapiwrapper.h"
 
 #include <SearchAPI.h>
-#include <stdio.h>
-#include <tchar.h>
-#include <Unknwn.h>
 #include <winrt/base.h>
-#include <shlwapi.h>
-#include <pathcch.h>
-#include <ShlGuid.h>
-#include <ShObjIdl_core.h>
-#include <ShlObj_core.h>
-#include <cfapi.h>
-#include <ntstatus.h>
-#include <sddl.h>
 #include <winrt\Windows.Foundation.h>
 #include <winrt\Windows.Storage.Provider.h>
-#include <winrt\Windows.Security.Cryptography.h>
-#include <ppltasks.h>
-#include <strsafe.h>
+#include <ShlObj_core.h>
+#include <ShObjIdl_core.h>
+#include <sddl.h>
 #include <propkey.h>      // needed for ApplyTransferStateToFile
 #include <propvarutil.h>  // needed for ApplyTransferStateToFile
-#include <cfapi.h>
 
-#include "common/utility.h"
-#include "hydrationjob.h"
-#include "vfs_cfapi.h"
+#include <cfapi.h>
+#include <comdef.h>
+#include <ntstatus.h>
 
 #include <QDir>
 #include <QFileInfo>
 #include <QLocalSocket>
 #include <QLoggingCategory>
 
-#include <cfapi.h>
-#include <comdef.h>
-#include <ntstatus.h>
+#include "common/utility.h"
+#include "hydrationjob.h"
+#include "vfs_cfapi.h"
 
 #define MSSEARCH_INDEX L"SystemIndex"
 DEFINE_PROPERTYKEY(PKEY_StorageProviderTransferProgress, 0xE77E90DF, 0x6271, 0x4F5B, 0x83, 0x4F, 0x2D, 0xD1, 0xF2, 0x45, 0xDD, 0xA4, 4);
