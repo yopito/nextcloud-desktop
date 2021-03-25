@@ -506,13 +506,6 @@ OCC::Result<void, QString> OCC::CfApiWrapper::registerSyncRoot(const QString &pa
     Q_ASSERT(result == S_OK);
     if (result != S_OK) {
         qCCritical(lcCfApiWrapper) << "Registration of SCyncRoot failed with:" << result;
-        qCWarning(lcCfApiWrapper) << "Trying to register with another version...";
-        info.ProviderVersion = L"3.1.82git";
-        qCInfo(lcCfApiWrapper) << "info.ProviderVersion" << QString::fromWCharArray(info.ProviderVersion);
-        const qint64 result1 = CfRegisterSyncRoot(p.data(), &info, &policies, CF_REGISTER_FLAG_UPDATE);
-        if (result1 != S_OK) {
-            qCCritical(lcCfApiWrapper) << "Registration of SCyncRoot failed again with:" << result1;
-        }
         return QString::fromWCharArray(_com_error(result).ErrorMessage());
     } else {
         return {};
