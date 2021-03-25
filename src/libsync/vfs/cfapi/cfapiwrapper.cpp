@@ -480,9 +480,39 @@ OCC::Result<void, QString> OCC::CfApiWrapper::registerSyncRoot(const QString &pa
     policies.InSync = CF_INSYNC_POLICY_PRESERVE_INSYNC_FOR_SYNC_ENGINE;
     policies.HardLink = CF_HARDLINK_POLICY_NONE;
 
+    qCInfo(lcCfApiWrapper) << "Trying to register a sync root with p:" << p <<"name" << name << "version" << version;
+
+    qCInfo(lcCfApiWrapper) << "START of CF_SYNC_REGISTRATION---------------------------->";
+
+    qCInfo(lcCfApiWrapper) << "info.ProviderName" << QString::fromWCharArray(info.ProviderName);
+    qCInfo(lcCfApiWrapper) << "info.ProviderVersion" << QString::fromWCharArray(info.ProviderVersion);
+
+    qCInfo(lcCfApiWrapper) << "END of CF_SYNC_REGISTRATION---------------------------->";
+
+    qCInfo(lcCfApiWrapper) << "START of CF_SYNC_POLICIES---------------------------->";
+
+    qCInfo(lcCfApiWrapper) << "policies.Hydration.Primary" << policies.Hydration.Primary;
+    qCInfo(lcCfApiWrapper) << "policies.Hydration.Modifier" << policies.Hydration.Modifier;
+
+    qCInfo(lcCfApiWrapper) << "policies.Population.Primary" << policies.Population.Primary;
+    qCInfo(lcCfApiWrapper) << "policies.Population.Modifier" << policies.Population.Modifier;
+
+    qCInfo(lcCfApiWrapper) << "policies.InSync" << policies.InSync;
+    qCInfo(lcCfApiWrapper) << "policies.HardLink" << policies.HardLink;
+
+    qCInfo(lcCfApiWrapper) << "END of CF_SYNC_POLICIES---------------------------->";
+
     const qint64 result = CfRegisterSyncRoot(p.data(), &info, &policies, CF_REGISTER_FLAG_UPDATE);
     Q_ASSERT(result == S_OK);
     if (result != S_OK) {
+        qCCritical(lcCfApiWrapper) << "Registration of SCyncRoot failed with:" << result;
+        qCWarning(lcCfApiWrapper) << "Trying to register with another version...";
+        info.ProviderVersion = L"3.1.82git";
+        qCInfo(lcCfApiWrapper) << "info.ProviderVersion" << QString::fromWCharArray(info.ProviderVersion);
+        const qint64 result1 = CfRegisterSyncRoot(p.data(), &info, &policies, CF_REGISTER_FLAG_UPDATE);
+        if (result1 != S_OK) {
+            qCCritical(lcCfApiWrapper) << "Registration of SCyncRoot failed again with:" << result1;
+        }
         return QString::fromWCharArray(_com_error(result).ErrorMessage());
     } else {
         return {};
