@@ -464,6 +464,8 @@ OCC::Result<void, QString> OCC::CfApiWrapper::registerSyncRoot(const QString &pa
     const auto name = providerName.toStdWString();
     const auto version = providerVersion.toStdWString();
 
+    qCInfo(lcCfApiWrapper) << "Trying to register a sync root with p:" << p <<"name" << name << "version" << version;
+
     CF_SYNC_REGISTRATION info;
     info.ProviderName = name.data();
     info.ProviderVersion = version.data();
