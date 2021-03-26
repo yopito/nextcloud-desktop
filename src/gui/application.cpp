@@ -612,13 +612,15 @@ void Application::parseOptions(const QStringList &options)
             _debugMode = true;
         } else if (option == QLatin1String("--background")) {
             _backgroundMode = true;
+        } else if (option == QLatin1String("--providerName")) {
+            qCInfo(lcApplication) << "providerName argument is" << option;
+        } else if (option == QLatin1String("--providerVersion")) {
+            qCInfo(lcApplication) << "providerVersion argument is" << option;
         } else if (option == QLatin1String("--version") || option == QLatin1String("-v")) {
             _versionOnly = true;
         } else if (option.endsWith(QStringLiteral(APPLICATION_DOTVIRTUALFILE_SUFFIX))) {
             // virtual file, open it after the Folder were created (if the app is not terminated)
             QTimer::singleShot(0, this, [this, option] { openVirtualFile(option); });
-        } else {
-            showHint("Unrecognized option '" + option.toStdString() + "'");
         }
     }
 }

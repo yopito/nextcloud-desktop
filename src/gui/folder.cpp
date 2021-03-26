@@ -492,6 +492,23 @@ void Folder::startVfs()
     ENFORCE(_vfs);
     ENFORCE(_vfs->mode() == _definition.virtualFilesMode);
 
+    const auto arguments = QApplication::arguments();
+
+    QString appNameFromArgs;
+    QString appVersionFromArgs;
+
+    if (arguments.length() >= 1) {
+        if (!arguments.at(1).isEmpty()) {
+            appNameFromArgs = arguments.at(1).right(arguments.at(1).size() - arguments.at(1).indexOf('=') - 1);
+        }
+    }
+
+    if (arguments.length() >= 2) {
+        if (!arguments.at(2).isEmpty()) {
+            appVersionFromArgs = arguments.at(2).right(arguments.at(2).size() - arguments.at(2).indexOf('=') - 1);
+        }
+    }
+
     VfsSetupParams vfsParams;
     vfsParams.filesystemPath = path();
     vfsParams.displayName = shortGuiRemotePathOrAppName();
@@ -499,8 +516,8 @@ void Folder::startVfs()
     vfsParams.remotePath = remotePathTrailingSlash();
     vfsParams.account = _accountState->account();
     vfsParams.journal = &_journal;
-    vfsParams.providerName = Theme::instance()->appNameGUI();
-    vfsParams.providerVersion = Theme::instance()->version();
+    vfsParams.providerName = !appNameFromArgs.isEmpty() ? appNameFromArgs : Theme::instance()->appNameGUI();
+    vfsParams.providerVersion = !appVersionFromArgs.isEmpty() ? appVersionFromArgs : Theme::instance()->version();
     vfsParams.multipleAccountsRegistered = AccountManager::instance()->accounts().size() > 1;
 
     connect(_vfs.data(), &Vfs::beginHydrating, this, &Folder::slotHydrationStarts);
