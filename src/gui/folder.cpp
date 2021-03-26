@@ -494,20 +494,8 @@ void Folder::startVfs()
 
     const auto arguments = QApplication::arguments();
 
-    QString appNameFromArgs;
-    QString appVersionFromArgs;
-
-    if (arguments.length() >= 1) {
-        if (!arguments.at(1).isEmpty()) {
-            appNameFromArgs = arguments.at(1).right(arguments.at(1).size() - arguments.at(1).indexOf('=') - 1);
-        }
-    }
-
-    if (arguments.length() >= 2) {
-        if (!arguments.at(2).isEmpty()) {
-            appVersionFromArgs = arguments.at(2).right(arguments.at(2).size() - arguments.at(2).indexOf('=') - 1);
-        }
-    }
+    QString appNameFromArgs = "Nextcloud";
+    QString appVersionFromArgs = "3.1.82rc2-Win64 (build 20210324)";
 
     VfsSetupParams vfsParams;
     vfsParams.filesystemPath = path();
