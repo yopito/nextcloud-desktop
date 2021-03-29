@@ -52,10 +52,6 @@
     <Property Id="INSTALLDIR">
         <RegistrySearch Id="RegistryInstallDir" Type="raw" Root="HKLM" Key="Software\$(var.AppVendor)\$(var.AppName)" Win64="no" />
     </Property>
-	
-	<Property Id="INSTALLED_WITH_UNATTENDED_MODE">
-        <RegistrySearch Id="RegistryInstalledUnattended" Type="raw" Root="HKLM" Key="Software\$(var.AppVendor)\$(var.AppName)" Name="InstalledUnattended" Win64="no" />
-    </Property>
 
     <!-- Detect legacy NSIS installation -->
     <Property Id="NSIS_UNINSTALLEXE">
@@ -81,8 +77,8 @@
         <!-- Uninstall: Remove sync folders from Explorer's Navigation Pane, only effective for the current user (home users) -->
         <Custom Action="RemoveNavigationPaneEntries" After="RemoveFiles">(NOT UPGRADINGPRODUCTCODE) AND (REMOVE="ALL")</Custom>
 
-        <!-- Schedule Reboot for the Shell Extensions -->
-        <ScheduleReboot After="InstallFinalize">NOT (DO_NOT_SCHEDULE_REBOOT=1) AND NOT (INSTALLED_WITH_UNATTENDED_MODE=1)</ScheduleReboot>
+        <!-- Schedule Reboot for the Shell Extensions (in silent installation mode only, or if SCHEDULE_REBOOT argument is set-->
+        <ScheduleReboot After="InstallFinalize">(SCHEDULE_REBOOT=1) OR NOT (UILevel=2)</ScheduleReboot>
     </InstallExecuteSequence>
 
     <!-- "Add or Remove" Programs Entries -->
@@ -191,16 +187,6 @@
                 <RegistryValue Type="integer" Name="skipUpdateCheck" Value="[SKIPAUTOUPDATE]" />
             </RegistryKey>
         </Component>
-		
-		<!-- Store the installation type information -->
-		<Component Id="RegistryInstallationType" Guid="*" Win64="no">
-            <RegistryKey Root="HKLM" Key="Software\$(var.AppVendor)\$(var.AppName)" ForceCreateOnInstall="yes" ForceDeleteOnUninstall="yes">
-			    <!-- It's unattended installation(without the UI) -->
-                <RegistryValue Type="string" Name="InstalledUnattended" Value="1" />		
-            </RegistryKey>
-			<!-- INSTALLUILEVEL_NONE equals to 2 -->
-			<Condition>UILevel=2</Condition>
-        </Component>
     </DirectoryRef>
 
     <!-- Features -->
@@ -210,7 +196,6 @@
 
         <ComponentRef Id="RegistryVersionInfo" />
         <ComponentRef Id="RegistryDefaultSettings" />
-		<ComponentRef Id="RegistryInstallationType" />
 
         <Feature Id="ShellExtensions" Title="Integration for Windows Explorer"
             Description="This feature requires a reboot." >
