@@ -173,7 +173,7 @@
                 <RegistryValue Type="integer" Name="VersionMajor" Value="$(var.VerMajor)" />
                 <RegistryValue Type="integer" Name="VersionMinor" Value="$(var.VerMinor)" />
                 <RegistryValue Type="integer" Name="VersionRevision" Value="$(var.VerRevision)" />
-                <RegistryValue Type="integer" Name="VersionBuild" Value="$(var.VerBuild)" />	
+                <RegistryValue Type="integer" Name="VersionBuild" Value="$(var.VerBuild)" />
 
                 <!-- Save MSI ProductCode to allow being uninstalled by custom tools -->
                 <RegistryValue Type="string" Name="InstallerProductCode" Value="[ProductCode]" />
