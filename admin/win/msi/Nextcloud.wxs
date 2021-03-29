@@ -199,7 +199,7 @@
                 <RegistryValue Type="string" Name="InstalledUnattended" Value="1" />		
             </RegistryKey>
 			<!-- INSTALLUILEVEL_NONE equals to 2 -->
-			<!-- <Condition>(UILevel = 2)</Condition> -->
+			<Condition>UILevel=2</Condition>
         </Component>
     </DirectoryRef>
 
