@@ -54,7 +54,7 @@
     </Property>
 	
 	<Property Id="INSTALLED_WITH_UNATTENDED_MODE">
-        <RegistrySearch Id="RegistryInstalledUnattended" Type="DWORD" Root="HKLM" Key="Software\$(var.AppVendor)\$(var.AppName)" Name="InstalledUnattended" Win64="no" />
+        <RegistrySearch Id="RegistryInstalledUnattended" Type="raw" Root="HKLM" Key="Software\$(var.AppVendor)\$(var.AppName)" Name="InstalledUnattended" Win64="no" />
     </Property>
 
     <!-- Detect legacy NSIS installation -->
@@ -188,7 +188,7 @@
 		<Component Id="RegistryInstallationType" Guid="*" Win64="no">
             <RegistryKey Root="HKLM" Key="Software\$(var.AppVendor)\$(var.AppName)" ForceCreateOnInstall="yes" ForceDeleteOnUninstall="yes">
 			    <!-- It's unattended installation(without the UI) -->
-                <RegistryValue Type="integer" Name="InstalledUnattended" Value="1" />		
+                <RegistryValue Type="string" Name="InstalledUnattended" Value="1" />		
             </RegistryKey>
 			<!-- INSTALLUILEVEL_NONE equals to 2 -->
 			<!-- <Condition>(UILevel = 2)</Condition> -->
