@@ -183,6 +183,14 @@
                 <RegistryValue Type="string" Name="InstallerProductCode" Value="[ProductCode]" />
             </RegistryKey>
         </Component>
+
+        <!-- Platform bitness-dependent settings -->
+        <Component Id="RegistryDefaultSettings" Guid="*" Win64="$(var.PlatformWin64)">
+            <RegistryKey Root="HKLM" Key="Software\$(var.AppVendor)\$(var.AppName)">
+                <!-- Property to disable update checks -->
+                <RegistryValue Type="integer" Name="skipUpdateCheck" Value="[SKIPAUTOUPDATE]" />
+            </RegistryKey>
+        </Component>
 		
 		<!-- Store the installation type information -->
 		<Component Id="RegistryInstallationType" Guid="*" Win64="no">
@@ -193,14 +201,6 @@
 			<!-- INSTALLUILEVEL_NONE equals to 2 -->
 			<!-- <Condition>(UILevel = 2)</Condition> -->
         </Component>
-
-        <!-- Platform bitness-dependent settings -->
-        <Component Id="RegistryDefaultSettings" Guid="*" Win64="$(var.PlatformWin64)">
-            <RegistryKey Root="HKLM" Key="Software\$(var.AppVendor)\$(var.AppName)">
-                <!-- Property to disable update checks -->
-                <RegistryValue Type="integer" Name="skipUpdateCheck" Value="[SKIPAUTOUPDATE]" />
-            </RegistryKey>
-        </Component>
     </DirectoryRef>
 
     <!-- Features -->
@@ -210,6 +210,7 @@
 
         <ComponentRef Id="RegistryVersionInfo" />
         <ComponentRef Id="RegistryDefaultSettings" />
+		<ComponentRef Id="RegistryInstallationType" />
 
         <Feature Id="ShellExtensions" Title="Integration for Windows Explorer"
             Description="This feature requires a reboot." >
