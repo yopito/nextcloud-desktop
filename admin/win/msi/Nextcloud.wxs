@@ -52,6 +52,10 @@
     <Property Id="INSTALLDIR">
         <RegistrySearch Id="RegistryInstallDir" Type="raw" Root="HKLM" Key="Software\$(var.AppVendor)\$(var.AppName)" Win64="no" />
     </Property>
+	
+	<Property Id="INSTALLED_WITH_UNATTENDED_MODE">
+        <RegistrySearch Id="RegistryInstalledUnattended" Type="DWORD" Root="HKLM" Key="Software\$(var.AppVendor)\$(var.AppName)" Name="InstalledUnattended" Win64="no" />
+    </Property>
 
     <!-- Detect legacy NSIS installation -->
     <Property Id="NSIS_UNINSTALLEXE">
@@ -78,7 +82,7 @@
         <Custom Action="RemoveNavigationPaneEntries" After="RemoveFiles">(NOT UPGRADINGPRODUCTCODE) AND (REMOVE="ALL")</Custom>
 
         <!-- Schedule Reboot for the Shell Extensions -->
-        <ScheduleReboot After="InstallFinalize">NOT (DO_NOT_SCHEDULE_REBOOT=1)</ScheduleReboot>
+        <ScheduleReboot After="InstallFinalize">NOT (DO_NOT_SCHEDULE_REBOOT=1) AND NOT (INSTALLED_WITH_UNATTENDED_MODE=1)</ScheduleReboot>
     </InstallExecuteSequence>
 
     <!-- "Add or Remove" Programs Entries -->
@@ -173,11 +177,21 @@
                 <RegistryValue Type="integer" Name="VersionMajor" Value="$(var.VerMajor)" />
                 <RegistryValue Type="integer" Name="VersionMinor" Value="$(var.VerMinor)" />
                 <RegistryValue Type="integer" Name="VersionRevision" Value="$(var.VerRevision)" />
-                <RegistryValue Type="integer" Name="VersionBuild" Value="$(var.VerBuild)" />
+                <RegistryValue Type="integer" Name="VersionBuild" Value="$(var.VerBuild)" />	
 
                 <!-- Save MSI ProductCode to allow being uninstalled by custom tools -->
                 <RegistryValue Type="string" Name="InstallerProductCode" Value="[ProductCode]" />
             </RegistryKey>
+        </Component>
+		
+		<!-- Store the installation type information -->
+		<Component Id="RegistryInstallationType" Guid="*" Win64="no">
+            <RegistryKey Root="HKLM" Key="Software\$(var.AppVendor)\$(var.AppName)" ForceCreateOnInstall="yes" ForceDeleteOnUninstall="yes">
+			    <!-- It's unattended installation(without the UI) -->
+                <RegistryValue Type="integer" Name="InstalledUnattended" Value="1" />		
+            </RegistryKey>
+			
+			<Condition Level="0">(UILevel = $(var.INSTALLUILEVEL_NONE))</Condition>
         </Component>
 
         <!-- Platform bitness-dependent settings -->
