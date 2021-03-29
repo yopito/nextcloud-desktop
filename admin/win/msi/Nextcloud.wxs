@@ -190,8 +190,8 @@
 			    <!-- It's unattended installation(without the UI) -->
                 <RegistryValue Type="integer" Name="InstalledUnattended" Value="1" />		
             </RegistryKey>
-			
-			<Condition Level="0">(UILevel = $(var.INSTALLUILEVEL_NONE))</Condition>
+			<!-- INSTALLUILEVEL_NONE equals to 2 -->
+			<Condition Level="0">(UILevel = 2)</Condition>
         </Component>
 
         <!-- Platform bitness-dependent settings -->
