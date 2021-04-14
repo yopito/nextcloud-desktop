@@ -30,6 +30,7 @@
 #include <QNetworkAccessManager>
 #include <QFileInfo>
 #include <QDir>
+#include <QRandomGenerator>
 #include <cmath>
 #include <cstring>
 
@@ -229,7 +230,7 @@ void PropagateUploadFileNG::slotDeleteJobFinished()
 void PropagateUploadFileNG::startNewUpload()
 {
     ASSERT(propagator()->_activeJobList.count(this) == 1);
-    _transferId = uint(qrand() ^ uint(_item->_modtime) ^ (uint(_fileToUpload._size) << 16) ^ qHash(_fileToUpload._file));
+    _transferId = uint((int) QRandomGenerator::global()->generate() ^ uint(_item->_modtime) ^ (uint(_fileToUpload._size) << 16) ^ qHash(_fileToUpload._file));
     _sent = 0;
     _currentChunk = 0;
 

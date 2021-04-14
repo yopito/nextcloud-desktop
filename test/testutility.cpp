@@ -58,8 +58,8 @@ private slots:
 
     void testLaunchOnStartup()
     {
-        qsrand(QDateTime::currentDateTime().toTime_t());
-        QString postfix = QString::number(qrand());
+        QRandomGenerator::securelySeeded();
+        QString postfix = QString::number((int) QRandomGenerator::global()->generate());
 
         const QString appName = QString::fromLatin1("testLaunchOnStartup.%1").arg(postfix);
         const QString guiName = "LaunchOnStartup GUI Name";

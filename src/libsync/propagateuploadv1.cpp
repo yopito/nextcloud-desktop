@@ -30,6 +30,7 @@
 #include <QNetworkAccessManager>
 #include <QFileInfo>
 #include <QDir>
+#include <QRandomGenerator>
 #include <cmath>
 #include <cstring>
 
@@ -39,7 +40,7 @@ void PropagateUploadFileV1::doStartUpload()
 {
     _chunkCount = int(std::ceil(_fileToUpload._size / double(chunkSize())));
     _startChunk = 0;
-    _transferId = uint(qrand()) ^ uint(_item->_modtime) ^ (uint(_fileToUpload._size) << 16);
+    _transferId = uint((int) QRandomGenerator::global()->generate()) ^ uint(_item->_modtime) ^ (uint(_fileToUpload._size) << 16);
 
     const SyncJournalDb::UploadInfo progressInfo = propagator()->_journal->getUploadInfo(_item->_file);
 
