@@ -47,7 +47,7 @@ static void mirallLogCatcher(QtMsgType type, const QMessageLogContext &ctx, cons
         logger->doLog(qFormatLogMessage(type, ctx, message));
     }
     if(type == QtCriticalMsg || type == QtFatalMsg) {
-        std::cerr << qPrintable(qFormatLogMessage(type, ctx, message)) << std::endl;
+        std::cerr << qPrintable(qFormatLogMessage(type, ctx, message)) << &Qt::endl;
     }
 
     if(type == QtFatalMsg) {
@@ -111,7 +111,7 @@ void Logger::log(Log log)
 
     msg += log.message;
     // _logs.append(log);
-    // std::cout << qPrintable(log.message) << std::endl;
+    // std::cout << qPrintable(log.message) << &Qt::endl;
 
     doLog(msg);
 }
@@ -136,7 +136,7 @@ void Logger::doLog(const QString &msg)
     {
         QMutexLocker lock(&_mutex);
         if (_logstream) {
-            (*_logstream) << msg << endl;
+            (*_logstream) << msg << &Qt::endl;
             if (_doFileFlush)
                 _logstream->flush();
         }
