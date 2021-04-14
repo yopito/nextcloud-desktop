@@ -12,6 +12,7 @@
  * for more details.
  */
 
+#include "sharee.h"
 #include "ui_shareusergroupwidget.h"
 #include "ui_shareuserline.h"
 #include "shareusergroupwidget.h"
@@ -34,6 +35,8 @@
 #include <QFileInfo>
 #include <QAbstractProxyModel>
 #include <QCompleter>
+#include <qaction.h>
+#include <qglobal.h>
 #include <qlayout.h>
 #include <QPropertyAnimation>
 #include <QMenu>
@@ -46,6 +49,7 @@
 #include <QListWidget>
 
 #include <cstring>
+#include <qobject.h>
 
 namespace OCC {
 
@@ -214,7 +218,8 @@ void ShareUserGroupWidget::slotSharesFetched(const QList<QSharedPointer<Share>> 
 
     foreach (const auto &share, shares) {
         // We don't handle link shares, only TypeUser or TypeGroup
-        if (share->getShareType() == Share::TypeLink) {
+        if ( // share->getShareType() != Share::TypeUser || share->getShareType() != Share::TypeGroup
+            share->getShareType() == Share::TypeLink) {
             if(!share->getUidOwner().isEmpty() &&
                     share->getUidOwner() != share->account()->davUser()){
                 linkOwners.append(share->getOwnerDisplayName());
@@ -228,7 +233,10 @@ void ShareUserGroupWidget::slotSharesFetched(const QList<QSharedPointer<Share>> 
             _ui->mainOwnerLabel->setText(QString("Shared with you by ").append(share->getOwnerDisplayName()));
         }
 
-        auto *s = new ShareUserLine(share, _maxSharingPermissions, _isFile, _parentScrollArea);
+
+        Q_ASSERT(share->getShareType() == Share::TypeUser || share->getShareType() == Share::TypeGroup);
+        auto userGroupShare = qSharedPointerDynamicCast<UserGroupShare>(share);
+        auto *s = new ShareUserLine(userGroupShare, _maxSharingPermissions, _isFile, _parentScrollArea);
         connect(s, &ShareUserLine::resizeRequested, this, &ShareUserGroupWidget::slotAdjustScrollWidgetSize);
         connect(s, &ShareUserLine::visualDeletionDone, this, &ShareUserGroupWidget::getShares);
         s->setBackgroundRole(layout->count() % 2 == 0 ? QPalette::Base : QPalette::AlternateBase);
@@ -413,7 +421,7 @@ void ShareUserGroupWidget::activateShareeLineEdit()
     _ui->shareeLineEdit->setFocus();
 }
 
-ShareUserLine::ShareUserLine(QSharedPointer<Share> share,
+ShareUserLine::ShareUserLine(QSharedPointer<UserGroupShare> share,
     SharePermissions maxSharingPermissions,
     bool isFile,
     QWidget *parent)
@@ -422,6 +430,7 @@ ShareUserLine::ShareUserLine(QSharedPointer<Share> share,
     , _share(share)
     , _isFile(isFile)
 {
+    qCDebug(lcSharing) << "Share type:" << share->getShareType();
     _ui->setupUi(this);
 
     _ui->sharedWith->setElideMode(Qt::ElideRight);
@@ -434,6 +443,7 @@ ShareUserLine::ShareUserLine(QSharedPointer<Share> share,
                                       maxSharingPermissions & SharePermissionDelete);
     _ui->permissionsEdit->setEnabled(enabled);
     connect(_ui->permissionsEdit, &QAbstractButton::clicked, this, &ShareUserLine::slotEditPermissionsChanged);
+    connect(_ui->noteConfirmButton, &QAbstractButton::clicked, this, &ShareUserLine::onNoteConfirmButtonClicked);
 
     // create menu with checkable permissions
     auto *menu = new QMenu(this);
@@ -442,6 +452,11 @@ ShareUserLine::ShareUserLine(QSharedPointer<Share> share,
     _permissionReshare->setEnabled(maxSharingPermissions & SharePermissionShare);
     menu->addAction(_permissionReshare);
     connect(_permissionReshare, &QAction::triggered, this, &ShareUserLine::slotPermissionsChanged);
+
+    _noteLinkAction = new QAction(tr("Note to recipient"));
+    _noteLinkAction->setCheckable(true);
+    menu->addAction(_noteLinkAction);
+    connect(_noteLinkAction, &QAction::triggered, this, &ShareUserLine::toggleNoteOptions);
 
     menu->addSeparator();
 
@@ -710,4 +725,38 @@ void ShareUserLine::customizeStyle()
     _deleteShareButton->setIcon(deleteicon);
 }
 
+void ShareUserLine::showNoteOptions(bool show)
+{
+    _ui->noteLabel->setVisible(show);
+    _ui->noteTextEdit->setVisible(show);
+    _ui->noteConfirmButton->setVisible(show);
+}
+
+
+void ShareUserLine::toggleNoteOptions(bool enable)
+{
+    showNoteOptions(enable);
+
+    if (enable) {
+        _ui->noteTextEdit->setFocus();
+    } else {
+        // 'deletes' note
+        if (_share)
+            _share->setNote(QString());
+    }
+}
+
+void ShareUserLine::onNoteConfirmButtonClicked()
+{
+    setNote(_ui->noteTextEdit->toPlainText());
+}
+
+void ShareUserLine::setNote(const QString &note)
+{
+    if (_share) {
+        // slotToggleAnimation(true);
+        // _ui->errorLabel->hide();
+        _share->setNote(note);
+    }
+}
 }
